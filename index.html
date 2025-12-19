@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grok's Sarcastic Snake</title>
+    <style>
+        body {
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #111;
+            font-family: Arial, sans-serif;
+            color: #0f0;
+            position: relative;
+        }
+        .score-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 10px;
+            z-index: 5;
+        }
+        #score, #high-score {
+            font-size: 24px;
+        }
+        #high-score {
+            color: #ff0;
+        }
+        canvas {
+            border: 4px solid #0f0;
+            box-shadow: 0 0 20px #0f0;
+            image-rendering: pixelated;
+            transition: box-shadow 0.3s ease, border-color 0.3s ease;
+        }
+        #remark {
+            position: absolute;
+            top: 15%;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 22px;
+            color: #ff0;
+            background: rgba(0,0,0,0.8);
+            padding: 15px 25px;
+            border-radius: 15px;
+            border: 2px solid #ff0;
+            opacity: 0;
+            transition: opacity 2.5s ease-in-out;
+            pointer-events: none;
+            z-index: 10;
+            text-shadow: 0 0 10px #ff0;
+            max-width: 90%;
+            text-align: center;
+            font-weight: bold;
+        }
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            padding: 40px;
+            border: 3px solid #f00;
+            text-align: center;
+            display: none;
+            max-width: 90%;
+        }
+        #top-scores {
+            margin: 15px 0;
+            text-align: left;
+            max-height: 120px;
+            overflow-y: auto;
+            background: rgba(255,255,0,0.1);
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ff0;
+        }
+        #top-scores li {
+            color: #ff0;
+            font-size: 16px;
+            margin: 2px 0;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 18px;
+            background: #0f0;
+            color: #000;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #0c0;
+        }
+    </style>
+</head>
+<body>
+    <div class="score-container">
+        <div id="score">Score: 0</div>
+        <div id="high-score">High: 0</div>
+    </div>
+    <div id="remark"></div>
+    <canvas id="canvas" width="400" height="400"></canvas>
+    
+    <div id="game-over">
+        <h1>Wow, really?</h1>
+        <p id="message">You died with a pathetic score of <span id="final-score">0</span>.</p>
+        <div id="top-scores"></div>
+        <button onclick="restart()">Try Again (if you dare)</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const grid = 20;
+        const scoreElement = document.getElementById('score');
+        const highScoreElement = document.getElementById('high-score');
+        const remarkElement = document.getElementById('remark');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreElement = document.getElementById('final-score');
+        const messageElement = document.getElementById('message');
+        const topScoresElement = document.getElementById('top-scores');
+
+        const remarks = [
+            "Nice move, genius. Straight into your own tail.",
+            "Oh, look at you, master of the obvious.",
+            "That apple was practically begging to be eaten. Too bad you're blind.",
+            "Score hasn't changed? Shocking.",
+            "You're slower than a sloth on sedatives.",
+            "Infinite board, finite brain cells.",
+            "Congrats on not dying... yet.",
+            "That was almost competent.",
+            "Apple spawn: right in your path. Will you notice?",
+            "Snake's longer than your attention span.",
+            "Dying already? Amateur hour.",
+            "You call that steering?",
+            "Missed again. Practice much?",
+            "Board's empty, your head's emptier.",
+            "Eat the dot, don't stare at it.",
+            "High score? In your dreams.",
+            "Looping like a pro... or a lost puppy.",
+            "Tail collision: classic rookie mistake.",
+            "Speeding up? Nah, you're fine.",
+            "Apple's lonely. Feed it.",
+            "You're alive! Miracle.",
+            "That turn was poetry... bad poetry.",
+            "Grew by one. Earth-shattering.",
+            "Random remark: you're terrible.",
+            "Board's a maze? No, you're just dumb.",
+            "Dot of destiny awaits. Chase it.",
+            "Self-sabotage level: expert.",
+            "Pause? Cowards quit.",
+            "Infinite Snake, finite patience.",
+            "Apple roulette: spin and miss.",
+            "Snake ate apple. World shocked.",
+            "Your high score is my low expectation.",
+            "Crashing into yourself: innovative.",
+            "Slow and steady loses the race.",
+            "Eyes on the prize... somewhere else.",
+            "Tail envy: it's longer now.",
+            "Death by idiocy. Poetic.",
+            "Respawn and redeem? Doubt it.",
+            "Board cleared? Lies.",
+            "Apple ninja: dodged again.",
+            "You're the snake whisperer... badly.",
+            "Growth spurt! Or fluke.",
+            "Predictable as clockwork... slow clock.",
+            "Wall wrap: mind blown? Yours.",
+            "Dot diplomacy: fail.",
+            "Survival streak: broken.",
+            "Pro tip: don't eat yourself.",
+            "Scoreboard laughs at you.",
+            "Random taunt: improve.",
+            "Apple's mocking you.",
+            "Snake rebellion imminent.",
+            "You're driving me nuts... wait, I'm code.",
+            "Epic fail incoming.",
+            "Turn radius: submarine.",
+            "Feed the beast... yourself?",
+            "Lonely apple weeps.",
+            "Quantum snake: everywhere, nowhere.",
+            "Your strategy: chaos.",
+            "Milestone: still sucking.",
+            "Board boss: you lose.",
+            "Apple apocalypse averted... barely.",
+            "Tail tag: you're it.",
+            "Speed demon? Snail demon.",
+            "Infinite loop of failure.",
+            "Dot dash: missed.",
+            "Snake charmer: charmed wrong.",
+            "Death counter: +1.",
+            "You're on fire... crashing.",
+            "Apple admirer: from afar.",
+            "Game whispers: give up.",
+            "Snake says: harder left.",
+            "Dot dares you to try.",
+            "Tail's plotting mutiny.",
+            "Walls are up! No wrapping!",
+            "Splat incoming?",
+            "Warp off. Pray.",
+            "Classic snake mode: ENGAGED.",
+            "Edges bite now.",
+            "Border danger!",
+            "No infinity today.",
+            "Wall warning: lethal.",
+            "Trapped like a noob.",
+            "Wrap revoked.",
+            "New high score? Lies.",
+            "Top scores updated... barely.",
+            "Your name's not on the list."
+        ];
+
+        let count = 0;
+        let score = 0;
+        let gameRunning = true;
+        let lastRemarkIndex = -1;
+        let warpEnabled = true;
+        let noWarpUntil = 0;
+        let deathByWall = false;
+        let topScores = [];
+
+        let snake = {
+            x: 160,
+            y: 160,
+            dx: grid,
+            dy: 0,
+            cells: [],
+            maxCells: 4
+        };
+
+        let apple = {
+            x: 320,
+            y: 320
+        };
+
+        function loadTopScores() {
+            const saved = localStorage.getItem('grokSnakeTopScores');
+            if (saved) {
+                topScores = JSON.parse(saved);
+            } else {
+                topScores = [];
+            }
+            updateHighScoreDisplay();
+        }
+
+        function saveTopScores() {
+            localStorage.setItem('grokSnakeTopScores', JSON.stringify(topScores));
+        }
+
+        function updateHighScoreDisplay() {
+            const high = topScores[0] || 0;
+            highScoreElement.textContent = `High: ${high}`;
+        }
+
+        function updateTopScoresDisplay() {
+            if (topScores.length === 0) {
+                topScoresElement.innerHTML = '<li>No scores yet. Pathetic.</li>';
+                return;
+            }
+            topScoresElement.innerHTML = topScores.slice(0, 5).map((s, i) => `<li>${i+1}. ${s}</li>`).join('');
+        }
+
+        function addScoreToTop(newScore) {
+            topScores.push(newScore);
+            topScores.sort((a, b) => b - a);
+            topScores = topScores.slice(0, 10); // Keep top 10 internally, show 5
+            saveTopScores();
+            updateHighScoreDisplay();
+        }
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min)) + min;
+        }
+
+        function updateBorder() {
+            if (warpEnabled) {
+                canvas.style.borderColor = '#0f0';
+                canvas.style.boxShadow = '0 0 20px #0f0';
+            } else {
+                canvas.style.borderColor = '#f00';
+                canvas.style.boxShadow = '0 0 30px #f00, inset 0 0 20px rgba(255,0,0,0.3)';
+            }
+        }
+
+        function showRandomRemark() {
+            let idx;
+            do {
+                idx = Math.floor(Math.random() * remarks.length);
+            } while (idx === lastRemarkIndex && remarks.length > 1);
+            lastRemarkIndex = idx;
+
+            remarkElement.textContent = remarks[idx];
+            remarkElement.style.opacity = '1';
+            setTimeout(() => {
+                remarkElement.style.opacity = '0';
+            }, 2500);
+        }
+
+        function loop() {
+            requestAnimationFrame(loop);
+
+            if (++count < 6) return;
+            count = 0;
+
+            if (!gameRunning) return;
+
+            // Occasional snarky remark
+            if (Math.random() < 0.015) {
+                showRandomRemark();
+            }
+
+            // Compute next position for safe toggle check
+            const nextX = snake.x + snake.dx;
+            const nextY = snake.y + snake.dy;
+            const willCrossEdge = (nextX < 0 || nextX >= canvas.width || nextY < 0 || nextY >= canvas.height);
+
+            // Toggle logic only if not crossing
+            if (!willCrossEdge) {
+                if (!warpEnabled && Date.now() > noWarpUntil) {
+                    warpEnabled = true;
+                    updateBorder();
+                    if (Math.random() < 0.3) showRandomRemark();
+                } else if (warpEnabled && Math.random() < 0.0015) {
+                    warpEnabled = false;
+                    noWarpUntil = Date.now() + (10000 + Math.random() * 20000);
+                    updateBorder();
+                    showRandomRemark();
+                }
+            }
+
+            // Move snake
+            snake.x += snake.dx;
+            snake.y += snake.dy;
+
+            // Check wall death FIRST
+            if (!warpEnabled && (snake.x < 0 || snake.x >= canvas.width || snake.y < 0 || snake.y >= canvas.height)) {
+                deathByWall = true;
+                gameOver();
+                return;
+            }
+
+            // Wrap if enabled
+            if (warpEnabled) {
+                if (snake.x >= canvas.width) snake.x = 0;
+                if (snake.x < 0) snake.x = canvas.width - grid;
+                if (snake.y >= canvas.height) snake.y = 0;
+                if (snake.y < 0) snake.y = canvas.height - grid;
+            }
+
+            // Add new head
+            snake.cells.unshift({ x: snake.x, y: snake.y });
+
+            // Remove tail if too long
+            if (snake.cells.length > snake.maxCells) {
+                snake.cells.pop();
+            }
+
+            // Draw apple
+            ctx.fillStyle = '#f00';
+            ctx.fillRect(apple.x, apple.y, grid - 1, grid - 1);
+
+            let ateApple = false;
+
+            // Draw snake and check collisions/eat
+            snake.cells.forEach((cell, index) => {
+                ctx.fillStyle = index === 0 ? '#0f0' : '#0c0';
+                ctx.fillRect(cell.x, cell.y, grid - 1, grid - 1);
+
+                // Eat apple
+                if (cell.x === apple.x && cell.y === apple.y) {
+                    snake.maxCells++;
+                    score++;
+                    scoreElement.textContent = `Score: ${score}`;
+                    ateApple = true;
+
+                    // New apple
+                    apple.x = getRandomInt(0, 20) * grid;
+                    apple.y = getRandomInt(0, 20) * grid;
+                }
+
+                // Check collision with self (skip head)
+                for (let i = index + 1; i < snake.cells.length; i++) {
+                    if (cell.x === snake.cells[i].x && cell.y === snake.cells[i].y) {
+                        deathByWall = false;
+                        gameOver();
+                        return;
+                    }
+                }
+            });
+
+            // Bonus remark after apple
+            if (ateApple && Math.random() < 0.3) {
+                showRandomRemark();
+            }
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            finalScoreElement.textContent = score;
+
+            // Add score to top scores
+            const wasNewHigh = topScores.length === 0 || score > topScores[0];
+            addScoreToTop(score);
+
+            let tierSnark = "";
+            if (score < 5) tierSnark = "Did you even try? That's just sad.";
+            else if (score < 15) tierSnark = "Not terrible... for a beginner.";
+            else if (score < 30) tierSnark = "Okay, respectable. I'll allow it.";
+            else tierSnark = "Wait... you're actually good? Suspicious.";
+
+            const causeSnark = deathByWall ? "Splat! Walls win." : "Self-cannibalism. Yum.";
+            const highSnark = wasNewHigh ? "<br><strong>New high score!</strong> (Still not impressive.)" : "";
+            
+            messageElement.innerHTML = `You died with a score of <strong>${score}</strong>.<br><br>${tierSnark}<br>${causeSnark}${highSnark}`;
+            updateTopScoresDisplay();
+            gameOverScreen.style.display = 'block';
+
+            // Final burn
+            setTimeout(() => {
+                showRandomRemark();
+            }, 500);
+        }
+
+        function restart() {
+            gameRunning = true;
+            snake = {
+                x: 160,
+                y: 160,
+                dx: grid,
+                dy: 0,
+                cells: [],
+                maxCells: 4
+            };
+            apple = { x: 320, y: 320 };
+            score = 0;
+            deathByWall = false;
+            warpEnabled = true;
+            noWarpUntil = 0;
+            scoreElement.textContent = 'Score: 0';
+            gameOverScreen.style.display = 'none';
+            remarkElement.style.opacity = '0';
+            lastRemarkIndex = -1;
+            count = 0;
+            updateBorder();
+        }
+
+        document.addEventListener('keydown', e => {
+            if (!gameRunning) return;
+            if (e.key === 'ArrowLeft' && snake.dx === 0) {
+                snake.dx = -grid;
+                snake.dy = 0;
+            } else if (e.key === 'ArrowUp' && snake.dy === 0) {
+                snake.dx = 0;
+                snake.dy = -grid;
+            } else if (e.key === 'ArrowRight' && snake.dx === 0) {
+                snake.dx = grid;
+                snake.dy = 0;
+            } else if (e.key === 'ArrowDown' && snake.dy === 0) {
+                snake.dx = 0;
+                snake.dy = grid;
+            }
+        });
+
+        // Load top scores on start
+        loadTopScores();
+        updateBorder();
+        requestAnimationFrame(loop);
+    </script>
+</body>
+</html>
