@@ -34,6 +34,7 @@
             box-shadow: 0 0 20px #0f0;
             image-rendering: pixelated;
             transition: box-shadow 0.3s ease, border-color 0.3s ease;
+            background: #000;
         }
         #remark {
             position: absolute;
@@ -211,7 +212,11 @@
             "Top scores updated... barely.",
             "Your name's not on the list.",
             "Finally grew? Took you long enough.",
-            "Snake diet: apples only."
+            "Snake diet: apples only.",
+            "Starting small again. Cute.",
+            "Full length from the get-go. Enjoy it while it lasts.",
+            "No more ghost trails, you big baby.",
+            "Clean board now. Happy?"
         ];
 
         let count = 0;
@@ -222,6 +227,7 @@
         let noWarpUntil = 0;
         let deathByWall = false;
         let topScores = [];
+        let growPending = false;
 
         function initSnake() {
             return {
@@ -241,16 +247,15 @@
 
         let snake = initSnake();
 
-        function resetApple() {
-            do {
-                apple.x = getRandomInt(0, 20) * grid;
-                apple.y = getRandomInt(0, 20) * grid;
-            } while (snake.cells.some(cell => cell.x === apple.x && cell.y === apple.y));
-        }
+        let apple = { x: 320, y: 320 };
 
-        let apple = {};
-        function initApple() {
-            resetApple();
+        function placeApple() {
+            let placed = false;
+            while (!placed) {
+                apple.x = getRandomInt(0, canvas.width / grid) * grid;
+                apple.y = getRandomInt(0, canvas.height / grid) * grid;
+                placed = !snake.cells.some(cell => cell.x === apple.x && cell.y === apple.y);
+            }
         }
 
         function getRandomInt(min, max) {
@@ -259,11 +264,7 @@
 
         function loadTopScores() {
             const saved = localStorage.getItem('grokSnakeTopScores');
-            if (saved) {
-                topScores = JSON.parse(saved);
-            } else {
-                topScores = [];
-            }
+            if (saved) topScores = JSON.parse(saved);
             updateHighScoreDisplay();
         }
 
@@ -272,7 +273,7 @@
         }
 
         function updateHighScoreDisplay() {
-            const high = topScores[0] || 0;
+            const high = topScores.length > 0 ? topScores[0] : 0;
             highScoreElement.textContent = `High: ${high}`;
         }
 
@@ -311,9 +312,7 @@
 
             remarkElement.textContent = remarks[idx];
             remarkElement.style.opacity = '1';
-            setTimeout(() => {
-                remarkElement.style.opacity = '0';
-            }, 2500);
+            setTimeout(() => remarkElement.style.opacity = '0', 2500);
         }
 
         function loop() {
@@ -324,17 +323,12 @@
 
             if (!gameRunning) return;
 
-            // Occasional snarky remark
-            if (Math.random() < 0.015) {
-                showRandomRemark();
-            }
+            if (Math.random() < 0.015) showRandomRemark();
 
-            // Compute next position for safe toggle check
             const nextX = snake.x + snake.dx;
             const nextY = snake.y + snake.dy;
             const willCrossEdge = (nextX < 0 || nextX >= canvas.width || nextY < 0 || nextY >= canvas.height);
 
-            // Toggle logic only if not crossing
             if (!willCrossEdge) {
                 if (!warpEnabled && Date.now() > noWarpUntil) {
                     warpEnabled = true;
@@ -348,18 +342,15 @@
                 }
             }
 
-            // Move snake
             snake.x += snake.dx;
             snake.y += snake.dy;
 
-            // Check wall death FIRST
             if (!warpEnabled && (snake.x < 0 || snake.x >= canvas.width || snake.y < 0 || snake.y >= canvas.height)) {
                 deathByWall = true;
                 gameOver();
                 return;
             }
 
-            // Wrap if enabled
             if (warpEnabled) {
                 if (snake.x >= canvas.width) snake.x = 0;
                 if (snake.x < 0) snake.x = canvas.width - grid;
@@ -367,82 +358,77 @@
                 if (snake.y < 0) snake.y = canvas.height - grid;
             }
 
-            // Add new head
             snake.cells.unshift({ x: snake.x, y: snake.y });
 
-            // Remove tail if too long
-            if (snake.cells.length > snake.maxCells) {
+            let ateApple = false;
+            if (snake.x === apple.x && snake.y === apple.y) {
+                growPending = true;
+                score++;
+                scoreElement.textContent = `Score: ${score}`;
+                ateApple = true;
+                placeApple();
+                if (Math.random() < 0.3) showRandomRemark();
+            }
+
+            if (!growPending && snake.cells.length > snake.maxCells) {
                 snake.cells.pop();
             }
+
+            if (growPending) {
+                snake.maxCells++;
+                growPending = false;
+            }
+
+            // *** FIXED: Clear the entire canvas every frame ***
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
             // Draw apple
             ctx.fillStyle = '#f00';
             ctx.fillRect(apple.x, apple.y, grid - 1, grid - 1);
 
-            let ateApple = false;
-
-            // Draw snake and check collisions/eat
+            // Draw snake
             snake.cells.forEach((cell, index) => {
                 ctx.fillStyle = index === 0 ? '#0f0' : '#0c0';
                 ctx.fillRect(cell.x, cell.y, grid - 1, grid - 1);
-
-                // Eat apple
-                if (cell.x === apple.x && cell.y === apple.y) {
-                    snake.maxCells++;
-                    score++;
-                    scoreElement.textContent = `Score: ${score}`;
-                    ateApple = true;
-                    resetApple();
-
-                    // Bonus remark after apple
-                    if (Math.random() < 0.3) {
-                        showRandomRemark();
-                    }
-                }
-
-                // Check collision with self (skip head)
-                for (let i = index + 1; i < snake.cells.length; i++) {
-                    if (cell.x === snake.cells[i].x && cell.y === snake.cells[i].y) {
-                        deathByWall = false;
-                        gameOver();
-                        return;
-                    }
-                }
             });
+
+            // Self-collision check (head into body)
+            for (let i = 1; i < snake.cells.length; i++) {
+                if (snake.cells[0].x === snake.cells[i].x && snake.cells[0].y === snake.cells[i].y) {
+                    deathByWall = false;
+                    gameOver();
+                    return;
+                }
+            }
         }
 
         function gameOver() {
             gameRunning = false;
             finalScoreElement.textContent = score;
 
-            // Add score to top scores
             const wasNewHigh = topScores.length === 0 || score > topScores[0];
             addScoreToTop(score);
 
-            let tierSnark = "";
-            if (score < 5) tierSnark = "Did you even try? That's just sad.";
-            else if (score < 15) tierSnark = "Not terrible... for a beginner.";
-            else if (score < 30) tierSnark = "Okay, respectable. I'll allow it.";
-            else tierSnark = "Wait... you're actually good? Suspicious.";
+            let tierSnark = score < 5 ? "Did you even try? That's just sad." :
+                            score < 15 ? "Not terrible... for a beginner." :
+                            score < 30 ? "Okay, respectable. I'll allow it." :
+                            "Wait... you're actually good? Suspicious.";
 
             const causeSnark = deathByWall ? "Splat! Walls win." : "Self-cannibalism. Yum.";
             const highSnark = wasNewHigh ? "<br><strong>New high score!</strong> (Still not impressive.)" : "";
             
-            messageElement.innerHTML = `You died with a score of <strong>${score}</strong>.<br><br>${tierSnark}<br>${causeSnark}${highSnark}`;
+            messageElement.innerHTML = `You died with a score of <strong>\( {score}</strong>.<br><br> \){tierSnark}<br>\( {causeSnark} \){highSnark}`;
             updateTopScoresDisplay();
             gameOverScreen.style.display = 'block';
 
-            // Final burn
-            setTimeout(() => {
-                showRandomRemark();
-            }, 500);
+            setTimeout(showRandomRemark, 500);
         }
 
         function restart() {
             gameRunning = true;
             snake = initSnake();
-            initApple();
             score = 0;
+            growPending = false;
             deathByWall = false;
             warpEnabled = true;
             noWarpUntil = 0;
@@ -451,29 +437,20 @@
             remarkElement.style.opacity = '0';
             lastRemarkIndex = -1;
             count = 0;
+            placeApple();
             updateBorder();
         }
 
         document.addEventListener('keydown', e => {
             if (!gameRunning) return;
-            if (e.key === 'ArrowLeft' && snake.dx === 0) {
-                snake.dx = -grid;
-                snake.dy = 0;
-            } else if (e.key === 'ArrowUp' && snake.dy === 0) {
-                snake.dx = 0;
-                snake.dy = -grid;
-            } else if (e.key === 'ArrowRight' && snake.dx === 0) {
-                snake.dx = grid;
-                snake.dy = 0;
-            } else if (e.key === 'ArrowDown' && snake.dy === 0) {
-                snake.dx = 0;
-                snake.dy = grid;
-            }
+            if (e.key === 'ArrowLeft' && snake.dx === 0) { snake.dx = -grid; snake.dy = 0; }
+            else if (e.key === 'ArrowUp' && snake.dy === 0) { snake.dx = 0; snake.dy = -grid; }
+            else if (e.key === 'ArrowRight' && snake.dx === 0) { snake.dx = grid; snake.dy = 0; }
+            else if (e.key === 'ArrowDown' && snake.dy === 0) { snake.dx = 0; snake.dy = grid; }
         });
 
-        // Load top scores on start
         loadTopScores();
-        initApple();
+        placeApple();
         updateBorder();
         requestAnimationFrame(loop);
     </script>
