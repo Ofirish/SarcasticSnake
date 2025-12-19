@@ -209,7 +209,9 @@
             "Wrap revoked.",
             "New high score? Lies.",
             "Top scores updated... barely.",
-            "Your name's not on the list."
+            "Your name's not on the list.",
+            "Finally grew? Took you long enough.",
+            "Snake diet: apples only."
         ];
 
         let count = 0;
@@ -221,19 +223,39 @@
         let deathByWall = false;
         let topScores = [];
 
-        let snake = {
-            x: 160,
-            y: 160,
-            dx: grid,
-            dy: 0,
-            cells: [],
-            maxCells: 4
-        };
+        function initSnake() {
+            return {
+                x: 160,
+                y: 160,
+                dx: grid,
+                dy: 0,
+                cells: [
+                    { x: 160, y: 160 },
+                    { x: 140, y: 160 },
+                    { x: 120, y: 160 },
+                    { x: 100, y: 160 }
+                ],
+                maxCells: 4
+            };
+        }
 
-        let apple = {
-            x: 320,
-            y: 320
-        };
+        let snake = initSnake();
+
+        function resetApple() {
+            do {
+                apple.x = getRandomInt(0, 20) * grid;
+                apple.y = getRandomInt(0, 20) * grid;
+            } while (snake.cells.some(cell => cell.x === apple.x && cell.y === apple.y));
+        }
+
+        let apple = {};
+        function initApple() {
+            resetApple();
+        }
+
+        function getRandomInt(min, max) {
+            return Math.floor(Math.random() * (max - min)) + min;
+        }
 
         function loadTopScores() {
             const saved = localStorage.getItem('grokSnakeTopScores');
@@ -265,13 +287,9 @@
         function addScoreToTop(newScore) {
             topScores.push(newScore);
             topScores.sort((a, b) => b - a);
-            topScores = topScores.slice(0, 10); // Keep top 10 internally, show 5
+            topScores = topScores.slice(0, 10);
             saveTopScores();
             updateHighScoreDisplay();
-        }
-
-        function getRandomInt(min, max) {
-            return Math.floor(Math.random() * (max - min)) + min;
         }
 
         function updateBorder() {
@@ -374,10 +392,12 @@
                     score++;
                     scoreElement.textContent = `Score: ${score}`;
                     ateApple = true;
+                    resetApple();
 
-                    // New apple
-                    apple.x = getRandomInt(0, 20) * grid;
-                    apple.y = getRandomInt(0, 20) * grid;
+                    // Bonus remark after apple
+                    if (Math.random() < 0.3) {
+                        showRandomRemark();
+                    }
                 }
 
                 // Check collision with self (skip head)
@@ -389,11 +409,6 @@
                     }
                 }
             });
-
-            // Bonus remark after apple
-            if (ateApple && Math.random() < 0.3) {
-                showRandomRemark();
-            }
         }
 
         function gameOver() {
@@ -425,15 +440,8 @@
 
         function restart() {
             gameRunning = true;
-            snake = {
-                x: 160,
-                y: 160,
-                dx: grid,
-                dy: 0,
-                cells: [],
-                maxCells: 4
-            };
-            apple = { x: 320, y: 320 };
+            snake = initSnake();
+            initApple();
             score = 0;
             deathByWall = false;
             warpEnabled = true;
@@ -465,6 +473,7 @@
 
         // Load top scores on start
         loadTopScores();
+        initApple();
         updateBorder();
         requestAnimationFrame(loop);
     </script>
